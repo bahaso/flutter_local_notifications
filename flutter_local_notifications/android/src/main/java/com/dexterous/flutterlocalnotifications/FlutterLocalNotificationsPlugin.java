@@ -22,6 +22,7 @@ import android.os.Build.VERSION_CODES;
 import android.service.notification.StatusBarNotification;
 import android.text.Html;
 import android.text.Spanned;
+import android.util.Log;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -787,6 +788,15 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
     static void showNotification(Context context, NotificationDetails notificationDetails) {
         Notification notification = createNotification(context, notificationDetails);
         NotificationManagerCompat notificationManagerCompat = getNotificationManager(context);
+        Log.d("show schedule","notification get hour " + notificationDetails.repeatTime.hour
+                + " " + notificationDetails.repeatTime.minute);
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, notificationDetails.repeatTime.hour);
+        calendar.set(Calendar.MINUTE, notificationDetails.repeatTime.minute);
+        calendar.set(Calendar.SECOND, notificationDetails.repeatTime.second);
+        long calendarInMillisecond = calendar.getTimeInMillis();
+        long differenceTime = System.currentTimeMillis() - calendarInMillisecond;
+        Log.d("difference time", "difference time " + differenceTime);
 
         if (notificationDetails.tag != null) {
             notificationManagerCompat.notify(notificationDetails.tag, notificationDetails.id, notification);
