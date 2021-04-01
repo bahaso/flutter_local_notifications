@@ -319,6 +319,19 @@ class AndroidFlutterLocalNotificationsPlugin
         return Future<void>.error('Method not defined');
     }
   }
+
+  /// this method only check when notification come to late
+  Future<bool> isNotificationLate() async =>
+      await _channel.invokeMethod('checkIsNotificationLate');
+
+  /// this method to change notification status, impact for show
+  /// banner information when notification comes to late or wanna change
+  /// status to hide banner notification
+  Future<void> setNotificationLateStatus(bool isLate) async =>
+
+      await _channel.invokeMethod('setNotificationLateStatus',{
+        'isLate': isLate
+      });
 }
 
 /// iOS implementation of the local notifications plugin.

@@ -298,6 +298,7 @@ class FlutterLocalNotificationsPlugin {
     String payload,
     DateTimeComponents matchDateTimeComponents,
   }) async {
+    print("setup alarm scheduled notification");
     if (_platform.isAndroid) {
       await resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
@@ -438,4 +439,26 @@ class FlutterLocalNotificationsPlugin {
   /// Returns a list of notifications pending to be delivered/shown.
   Future<List<PendingNotificationRequest>> pendingNotificationRequests() =>
       FlutterLocalNotificationsPlatform.instance?.pendingNotificationRequests();
+
+  /// return boolean for state notification come to late or not
+  Future<bool> checkIsNotificationLate() async {
+    if (_platform.isAndroid) {
+      final isNotificationLate = await resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.isNotificationLate();
+      return isNotificationLate;
+    }
+    return true;
+  }
+
+  /// to set notification status when app comes to late
+  /// and show in banner notification
+  /// or wanna hide banner notification
+  Future<void> setNotificationLateStatus(bool isLate) async {
+    if (_platform.isAndroid) {
+      await resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          .setNotificationLateStatus(isLate);
+    }
+  }
 }

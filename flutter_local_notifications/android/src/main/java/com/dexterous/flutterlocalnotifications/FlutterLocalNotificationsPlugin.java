@@ -57,15 +57,21 @@ import com.jakewharton.threetenabp.AndroidThreeTen;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
@@ -86,6 +92,7 @@ import io.flutter.view.FlutterMain;
 @Keep
 public class FlutterLocalNotificationsPlugin implements MethodCallHandler, PluginRegistry.NewIntentListener, FlutterPlugin, ActivityAware {
     private static final String SHARED_PREFERENCES_KEY = "notification_plugin_cache";
+    private static final String IS_NOTIFICATION_LATE = "isNotificationLate";
     private static final String DRAWABLE = "drawable";
     private static final String DEFAULT_ICON = "defaultIcon";
     private static final String SELECT_NOTIFICATION = "SELECT_NOTIFICATION";
@@ -121,12 +128,33 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
     private static final String INVALID_RAW_RESOURCE_ERROR_MESSAGE = "The resource %s could not be found. Please make sure it has been added as a raw resource to your Android head project.";
     private static final String CANCEL_ID = "id";
     private static final String CANCEL_TAG = "tag";
+    private static final String CHECK_IS_NOTIFICATION_LATE_METHOD = "checkIsNotificationLate";
+    private static final String SET_NOTIFICATION_LATE_STATUS = "setNotificationLateStatus";
     static String NOTIFICATION_DETAILS = "notificationDetails";
     static Gson gson;
     private MethodChannel channel;
     private Context applicationContext;
     private Activity mainActivity;
     private Intent launchIntent;
+
+    private static final int MINIMAL_TIME_LATE = 3;
+
+    private static final int RQ_ADZAN_SUBUH = 121;
+    private static final int RQ_ADZAN_DZHUR = 122;
+    private static final int RQ_ADZAN_ASHAR = 123;
+    private static final int RQ_ADZAN_MAGHRIB = 124;
+    private static final int RQ_ADZAN_ISHA = 125;
+
+    private static final int RQ_ADZAN_SUBUH_NO_SOUND = 171;
+    private static final int RQ_ADZAN_DZHUR_NO_SOUND = 172;
+    private static final int RQ_ADZAN_ASHAR_NO_SOUND = 173;
+    private static final int RQ_ADZAN_MAGHRIB_NO_SOUND = 174;
+    private static final int RQ_ADZAN_ISHA_NO_SOUND = 175;
+
+    private static final int[] ADZAN_SOUND = {RQ_ADZAN_SUBUH, RQ_ADZAN_SUBUH_NO_SOUND,
+            RQ_ADZAN_DZHUR, RQ_ADZAN_DZHUR_NO_SOUND, RQ_ADZAN_ASHAR, RQ_ADZAN_ASHAR_NO_SOUND,
+            RQ_ADZAN_MAGHRIB, RQ_ADZAN_MAGHRIB_NO_SOUND,
+            RQ_ADZAN_ISHA, RQ_ADZAN_ISHA_NO_SOUND};
 
     public static void registerWith(Registrar registrar) {
         FlutterLocalNotificationsPlugin plugin = new FlutterLocalNotificationsPlugin();
@@ -280,14 +308,14 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
     }
 
     private static void tryCommittingInBackground(final SharedPreferences.Editor editor, final int tries) {
-        if(tries == 0) {
+        if (tries == 0) {
             return;
         }
         new Thread(new Runnable() {
             @Override
             public void run() {
                 final boolean isCommitted = editor.commit();
-                if(!isCommitted) {
+                if (!isCommitted) {
                     tryCommittingInBackground(editor, tries - 1);
                 }
             }
@@ -338,6 +366,7 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
     }
 
     private static void zonedScheduleNotification(Context context, final NotificationDetails notificationDetails, Boolean updateScheduledNotificationsCache) {
+
         Gson gson = buildGson();
         String notificationDetailsJson = gson.toJson(notificationDetails);
         Intent notificationIntent = new Intent(context, ScheduledNotificationReceiver.class);
@@ -788,15 +817,32 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
     static void showNotification(Context context, NotificationDetails notificationDetails) {
         Notification notification = createNotification(context, notificationDetails);
         NotificationManagerCompat notificationManagerCompat = getNotificationManager(context);
-        Log.d("show schedule","notification get hour " + notificationDetails.repeatTime.hour
-                + " " + notificationDetails.repeatTime.minute);
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, notificationDetails.repeatTime.hour);
-        calendar.set(Calendar.MINUTE, notificationDetails.repeatTime.minute);
-        calendar.set(Calendar.SECOND, notificationDetails.repeatTime.second);
-        long calendarInMillisecond = calendar.getTimeInMillis();
-        long differenceTime = System.currentTimeMillis() - calendarInMillisecond;
-        Log.d("difference time", "difference time " + differenceTime);
+        String scheduledTime = notificationDetails.scheduledDateTime;
+
+        boolean isContainSomething = false;
+        for (int id : ADZAN_SOUND) {
+            isContainSomething = notificationDetails.id == id;
+        }
+        if (isContainSomething || notificationDetails.calledAt != null) {
+            Log.d("show schedule", "notification get hour " + scheduledTime + " " + notificationDetails.channelName);
+            long currentTime = System.currentTimeMillis();
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.UK);
+            try {
+                Date date = simpleDateFormat.parse(scheduledTime);
+                long differenceTime = currentTime - date.getTime();
+                long differenceTimeInMinute = differenceTime / (60 * 1000) % 60;
+                boolean isLate = differenceTimeInMinute > MINIMAL_TIME_LATE;
+
+                SharedPreferences sharedPreferences = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putBoolean(IS_NOTIFICATION_LATE, isLate);
+                tryCommittingInBackground(editor, 3);
+
+                Log.d("show schedule", "get difference time " + differenceTimeInMinute + " | " + differenceTime);
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+        }
 
         if (notificationDetails.tag != null) {
             notificationManagerCompat.notify(notificationDetails.tag, notificationDetails.id, notification);
@@ -987,6 +1033,13 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
                 break;
             case GET_ACTIVE_NOTIFICATIONS_METHOD:
                 getActiveNotifications(result);
+                break;
+            case CHECK_IS_NOTIFICATION_LATE_METHOD:
+                checkIsNotificationLate(result);
+                break;
+            case SET_NOTIFICATION_LATE_STATUS:
+                boolean isLate = call.argument("isLate");
+                setNotificationLateStatus(isLate);
                 break;
             default:
                 result.notImplemented();
@@ -1257,5 +1310,18 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
         } catch (Throwable e) {
             result.error(GET_ACTIVE_NOTIFICATIONS_ERROR_CODE, e.getMessage(), e.getStackTrace());
         }
+    }
+
+    private void checkIsNotificationLate(Result result) {
+        SharedPreferences sharedPreferences = applicationContext.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
+        boolean isNotificationLate = sharedPreferences.getBoolean(IS_NOTIFICATION_LATE, false);
+        result.success(isNotificationLate);
+    }
+
+    public void setNotificationLateStatus(boolean isLate){
+        SharedPreferences sharedPreferences = applicationContext.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean(IS_NOTIFICATION_LATE, isLate);
+        tryCommittingInBackground(editor, 3);
     }
 }
