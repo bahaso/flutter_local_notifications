@@ -328,7 +328,6 @@ class AndroidFlutterLocalNotificationsPlugin
   /// banner information when notification comes to late or wanna change
   /// status to hide banner notification
   Future<void> setNotificationLateStatus(bool isLate) async =>
-
       await _channel.invokeMethod('setNotificationLateStatus',{
         'isLate': isLate
       });

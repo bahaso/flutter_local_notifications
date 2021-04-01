@@ -1039,7 +1039,7 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
                 break;
             case SET_NOTIFICATION_LATE_STATUS:
                 boolean isLate = call.argument("isLate");
-                setNotificationLateStatus(isLate);
+                setNotificationLateStatus(result,isLate);
                 break;
             default:
                 result.notImplemented();
@@ -1318,10 +1318,13 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
         result.success(isNotificationLate);
     }
 
-    public void setNotificationLateStatus(boolean isLate){
+    private void setNotificationLateStatus(Result result, boolean isLate){
         SharedPreferences sharedPreferences = applicationContext.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean(IS_NOTIFICATION_LATE, isLate);
         tryCommittingInBackground(editor, 3);
+
+        boolean getNotificationStatus = sharedPreferences.getBoolean(IS_NOTIFICATION_LATE, false);
+        result.success(true);
     }
 }
