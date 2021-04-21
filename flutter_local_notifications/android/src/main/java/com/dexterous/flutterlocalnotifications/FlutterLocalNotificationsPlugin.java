@@ -823,7 +823,7 @@ public class FlutterLocalNotificationsPlugin implements MethodCallHandler, Plugi
         for (int id : ADZAN_SOUND) {
             isContainSomething = notificationDetails.id == id;
         }
-        if (isContainSomething || notificationDetails.calledAt != null) {
+        if (isContainSomething && notificationDetails.calledAt != null) {
             Log.d("show schedule", "notification get hour " + scheduledTime + " " + notificationDetails.channelName);
             long currentTime = System.currentTimeMillis();
             SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.UK);
